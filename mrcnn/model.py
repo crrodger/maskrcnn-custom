@@ -7,6 +7,14 @@ Licensed under the MIT License (see LICENSE for details)
 Written by Waleed Abdulla
 """
 
+# from warnings import filterwarnings  # noqa
+# filterwarnings(action='ignore',
+#                         category=DeprecationWarning,
+#                         module='tensorflow')  # noqa
+from warnings import simplefilter 
+simplefilter(action='ignore', category=FutureWarning)
+simplefilter(action='ignore', category=DeprecationWarning)
+
 import os
 import random
 import datetime
@@ -1835,7 +1843,7 @@ class MaskRCNN():
     The actual Keras model is in the keras_model property.
     """
 
-    def __init__(self, mode, config, model_dir):
+    def __init__(self, mode, config, model_dir, resume_model=None):
         """
         mode: Either "training" or "inference"
         config: A Sub-class of the Config class
@@ -1845,7 +1853,7 @@ class MaskRCNN():
         self.mode = mode
         self.config = config
         self.model_dir = model_dir
-        self.set_log_dir()
+        self.set_log_dir(resume_model)
         self.keras_model = self.build(mode=mode, config=config)
 
     def build(self, mode, config):

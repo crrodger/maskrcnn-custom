@@ -1,0 +1,63 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Train Scratch",
+            "type": "python",
+            "request": "launch",
+            "program": "custom.py",
+            "console": "integratedTerminal",
+            "args": [
+                "train",
+                "--dataset=data",
+                "--weights=coco",
+                "--logs=logs"
+            ]
+        },
+        {
+            "name": "Python: Train Continue",
+            "type": "python",
+            "request": "launch",
+            "program": "custom.py",
+            "console": "integratedTerminal",
+            "args": [
+                "train",
+                "--dataset=data",
+                "--weights=last",
+                "--logs=logs",
+                "--resume=logs/experiment20210816T0950/mask_rcnn_experiment_0001.h5"
+            ]
+        },
+        {
+            "name": "Python: Infer Splash",
+            "type": "python",
+            "request": "launch",
+            "program": "custom.py",
+            "console": "integratedTerminal",
+            "args": [
+                "splash",
+                "--dataset=data",
+                "--weights=/Users/craig/Craig/Documents/Python_Projects/maskrcnn-custom/logs/experiment20210816T0950/mask_rcnn_experiment_0034.h5",
+                "--logs=logs",
+                "--imagespec=/Users/craig/Craig/Documents/Python_Projects/maskrcnn-custom/data/test/frame{}.jpg"
+            ]
+        },
+        {
+            "name": "Python: Infer Image",
+            "type": "python",
+            "request": "launch",
+            "program": "custom.py",
+            "console": "integratedTerminal",
+            "args": [
+                "image",
+                "--dataset=data",
+                "--weights=/Users/craig/Craig/Documents/Python_Projects/maskrcnn-custom/logs/experiment20210816T0950/mask_rcnn_experiment_0034.h5",
+                "--logs=logs",
+                "--imagespec=/Users/craig/Craig/Documents/Python_Projects/maskrcnn-custom/data/test/frame{}.jpg"
+            ]
+        }
+    ]
+}

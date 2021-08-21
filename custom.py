@@ -32,6 +32,11 @@ Usage: import the module (see Jupyter notebooks for examples), or run from
     python3 custom.py classic_movie  --weights=/path/to/weights/file.h5 --video=<webcam, URL or path to file>
 """
 
+from warnings import simplefilter 
+simplefilter(action='ignore', category=FutureWarning, append=True)
+simplefilter(action='ignore', category=Warning, append=True)
+simplefilter(action='ignore', category=DeprecationWarning, append=True)
+
 import os
 import sys
 import json
@@ -42,7 +47,7 @@ import imgaug
 import cv2
 import matplotlib.pyplot as plt
 from timeit import default_timer as timer
-
+import glob
 
 # Root directory of the project
 ROOT_DIR = os.path.abspath(".")
@@ -65,7 +70,7 @@ DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
 # CLASS NAME - USER MUST UPDATE and it must match names in .json annotation files
 # CLASS_NAME = {'eye':1, 'nose':2}
 
-CLASS_NAME = {'fish':1}
+CLASS_NAME = {'water_pothole':1}
 
 ############################################################
 #  Configurations
@@ -193,7 +198,8 @@ class CustomDataset(utils.Dataset):
         class_ids = []
         for cls_name in info['source']:
             class_ids.append(CLASS_NAME[cls_name])
-        return mask.astype(np.bool), np.array(class_ids, dtype=np.int32)
+        # return mask.astype(np.bool), np.array(class_ids, dtype=np.int32)
+        return mask.astype(bool), np.array(class_ids, dtype=np.int32)
 
     def image_reference(self, image_id):
         """Return the path of the image."""
@@ -236,7 +242,8 @@ def train(model, epochs):
                 learning_rate=config.LEARNING_RATE,
                 epochs=epochs,
                 layers='heads',
-                augmentation=None)
+                augmentation=augmentation)
+    # CER Added augmentation
 
 
 def color_splash(image, mask):
@@ -273,9 +280,16 @@ def detect_and_draw_image(model, image_path=None):
     """Run model detection and generate the result image"""
     class_names = ['BG']
     class_names.extend(CLASS_NAME.keys())
-    if image_path:
+
+    if args.imagespec:
+        imagespec = args.imagespec.replace("{}","*")
+        all_inputs = glob.glob(imagespec)
+    elif image_path:
+        all_inputs = [image_path]
+
+    for image_item in all_inputs:
         # Read image
-        image = skimage.io.imread(args.image)
+        image = skimage.io.imread(image_item)
         # Detect objects
         r = model.detect([image], verbose=1)[0]
         image_result = display_instances(image, r['rois'], r['masks'], r['class_ids'], 
@@ -284,29 +298,41 @@ def detect_and_draw_image(model, image_path=None):
         cv2.namedWindow("result", cv2.WINDOW_NORMAL)
         cv2.imshow("result", image_result)
         # Save output
-        file_name = "result_{:%Y%m%dT%H%M%S}.png".format(datetime.datetime.now())
+        org_filename = image_item.split("/")[-1][:-3]
+        file_name = "{}result_{:%Y%m%dT%H%M%S}.png".format(org_filename, datetime.datetime.now())
         skimage.io.imsave(file_name, image_result)
 
 
 def detect_and_color_splash(model, image_path=None, video_path=None):
     """Run model detection and generate the color splash effect"""
 
-    assert image_path or video_path
+    assert image_path or video_path or args.imagespec
 
     # Image or video?
-    if image_path:
-        print("Running on {}".format(image_path))
-        # Read image
-        image = skimage.io.imread(image_path)
-        # Detect objects
-        r = model.detect([image], verbose=1)[0]
-        # Color splash
-        splash = color_splash(image, r['masks'])
-        # Save output
-        file_name = "splash_{:%Y%m%dT%H%M%S}.png".format(datetime.datetime.now())
-        skimage.io.imsave(file_name, splash)
-        print("Saved to ", file_name)
-        return splash
+    if image_path or args.imagespec:
+
+        if args.imagespec:
+            imagespec = args.imagespec.replace("{}","*")
+            all_inputs = glob.glob(imagespec)
+        elif image_path:
+            all_inputs = [image_path]
+
+
+        for image_item in all_inputs:
+            print("Running on {}".format(image_item))
+            # Read image
+            image = skimage.io.imread(image_item)
+            # Detect objects
+            r = model.detect([image], verbose=1)[0]
+            # Color splash
+            splash = color_splash(image, r['masks'])
+            # Save output
+            org_filename = image_item.split("/")[-1][:-3]
+            file_name = "{}splash_{:%Y%m%dT%H%M%S}.png".format(org_filename, datetime.datetime.now())
+            skimage.io.imsave(file_name, splash)
+            print("Saved to ", file_name)
+        return
+        # return splash
     elif video_path:
         import cv2
         # Video capture
@@ -468,7 +494,11 @@ if __name__ == '__main__':
                         help='Logs and checkpoints directory (default=logs/)')
     parser.add_argument('--image', required=False,
                         metavar="path or URL to image",
+                        nargs='*',
                         help='Image to apply the color splash effect on')
+    parser.add_argument('--imagespec', required=False,
+                        metavar="a spec of path to images",
+                        help='Imagespec  to apply the color splash effect on')
     parser.add_argument('--video', required=False,
                         metavar="path or URL to video",
                         help='Video to apply the color splash effect on')
@@ -476,13 +506,16 @@ if __name__ == '__main__':
                         default=40,
                         type=int,
                         help='Number of epochs to train on')
+    parser.add_argument('--resume', required=False,
+                        metavar="path to last epoch model if resuming",
+                        help='Last model name (path) to resume from')
     args = parser.parse_args()
 
     # Validate arguments
     if args.command == "train":
         assert args.dataset, "Argument --dataset is required for training"
     elif args.command == "splash":
-        assert args.image or args.video,\
+        assert args.image or args.video or args.imagespec,\
                "Provide --image or --video to apply color splash"
 
     print("Weights: ", args.weights)
@@ -504,7 +537,7 @@ if __name__ == '__main__':
     # Create model
     if args.command == "train":
         model = modellib.MaskRCNN(mode="training", config=config,
-                                  model_dir=args.logs)
+                                  model_dir=args.logs, resume_model=args.resume)
     else:
         model = modellib.MaskRCNN(mode="inference", config=config,
                                   model_dir=args.logs)
@@ -517,7 +550,7 @@ if __name__ == '__main__':
             utils.download_trained_weights(weights_path)
     elif args.weights.lower() == "last":
         # Find last trained weights
-        weights_path = model.find_last()[1]
+        weights_path = model.find_last()
     elif args.weights.lower() == "imagenet":
         # Start from ImageNet trained weights
         weights_path = model.get_imagenet_weights()
